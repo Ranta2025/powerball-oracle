@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powerball Oracle</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎱 POWERBALL ORACLE</h1>
+            <p class="subtitle">Análisis de patrones con Inteligencia Artificial</p>
+        </header>
+
+        <section class="data-section glass">
+            <div class="load-controls">
+                <button id="loadDataBtn" class="btn secondary">🔄 Cargar últimos resultados</button>
+                <span id="dataStatusBadge" class="badge">A la espera de datos...</span>
+            </div>
+            
+            <div id="dataSpinner" class="hidden">
+                <div class="spinner small"></div>
+                <span>Conectando con data.ny.gov...</span>
+            </div>
+
+            <div id="tableContainer" class="table-container hidden">
+                <table class="draws-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Bolas Blancas</th>
+                            <th>Powerball</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="drawsTableBody">
+                        <!-- Rows injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="sliderContainer" class="slider-container hidden">
+                <label for="drawCountSlider">Usar últimos <span id="sliderValue" class="highlight">100</span> sorteos para el análisis:</label>
+                <input type="range" id="drawCountSlider" min="20" max="150" value="100">
+                <div class="extra-controls">
+                    <button id="addManualBtn" class="btn minimal">➕ Agregar sorteo manual</button>
+                    <button id="clearAllBtn" class="btn minimal text-red">🗑️ Limpiar todo</button>
+                </div>
+            </div>
+            
+            <div id="warningMsg" class="warning hidden">⚠️ Tienes pocos sorteos. El análisis será menos preciso.</div>
+        </section>
+
+        <section class="api-section glass">
+            <label for="apiKey">OpenRouter API Key (<a href="https://openrouter.ai/keys" target="_blank">Obtén tu API Key gratis en openrouter.ai — sin tarjeta de crédito</a>):</label>
+            <input type="password" id="apiKey" placeholder="sk-or-..." autocomplete="off">
+            <div class="model-badge" style="margin-top: 10px; margin-bottom: 10px; font-size: 0.9em; color: #a1a1aa; text-align: center;">🧠 Powered by DeepSeek R1 — Especialista en razonamiento matemático</div>
+            <button id="analyzeBtn" class="btn primary" disabled>ANALIZAR Y PREDECIR</button>
+            <p style="font-size: 0.8em; color: #a1a1aa; text-align: center; margin-top: 10px;">La app prueba automáticamente varios modelos gratuitos hasta encontrar uno disponible</p>
+        </section>
+
+        <section id="loadingSection" class="hidden text-center">
+            <div class="spinner">
+                <div class="ball-spin"></div>
+            </div>
+            <p>Buscando modelo disponible...</p>
+        </section>
+
+        <section id="resultSection" class="result-section hidden">
+            <h2 id="predictionTitle">PREDICCIÓN</h2>
+            <p id="summaryPhrase" class="summary-phrase"></p>
+            
+            <div class="confidence-badge" id="confidenceBadge">Confianza: -</div>
+
+            <div class="balls-container" id="predictionBalls">
+                <!-- Bolas inyectadas por JS -->
+            </div>
+
+            <details class="analysis-details glass">
+                <summary>Ver análisis completo</summary>
+                <div class="analysis-content">
+                    <h3>Patrones Encontrados</h3>
+                    <ul id="patternsList" class="patterns-list"></ul>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-box hot">
+                            <h4>🔥 Números Calientes (Top 8)</h4>
+                            <div id="hotNumbersList" class="freq-list"></div>
+                        </div>
+                        <div class="stat-box cold">
+                            <h4>❄️ Números Fríos (Bottom 5)</h4>
+                            <div id="coldNumbersList" class="freq-list"></div>
+                        </div>
+                        <div class="stat-box">
+                            <h4>Estadísticas Clave</h4>
+                            <ul class="quick-stats">
+                                <li>Suma Promedio: <strong id="avgSum" class="highlight"></strong></li>
+                                <li>Paridad: <strong id="parityTrend" class="highlight"></strong></li>
+                                <li>Rango Dominante: <strong id="rangoDominante" class="highlight"></strong></li>
+                            </ul>
+                        </div>
+                        <div class="stat-box">
+                            <h4>Tendencia Reciente (Últimos 10)</h4>
+                            <p id="tendenciaReciente"></p>
+                        </div>
+                        <div class="stat-box full-width">
+                            <h4>🔴 Relación Powerball</h4>
+                            <p id="pbRelation"></p>
+                        </div>
+                        <div class="stat-box full-width reasoning">
+                            <h4>🧠 Razonamiento Detallado</h4>
+                            <p id="reasoningText"></p>
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </section>
+        
+        <footer>
+            <p class="disclaimer">⚠️ Esta herramienta es solo para entretenimiento y análisis estadístico. La lotería Powerball es un juego de azar completamente aleatorio. Ningún análisis matemático o de IA puede predecir resultados futuros con certeza. Juega responsablemente.<br><br>Powered by DeepSeek R1 via OpenRouter — Gratis · Sin tarjeta de crédito</p>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
