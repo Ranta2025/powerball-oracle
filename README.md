@@ -1,29 +1,37 @@
-# Powerball Oracle - Pattern Analyzer
+# Powerball Oracle - Analizador Estadístico
 
-Aplicación web frontend (SPA) que utiliza inteligencia artificial (Anthropic Claude 3.5 Sonnet) para analizar historiales de sorteos de Powerball e intentar encontrar patrones matemáticos para predecir posibles resultados.
+Aplicación web (HTML + CSS + JavaScript puro) que analiza el historial de sorteos de Powerball con un **motor estadístico propio**. No usa IA, APIs de pago, API keys ni librerías: todo el cálculo ocurre en el navegador.
 
-## Características
+## Cómo funciona el motor (`stats-engine.js`)
 
-- **Diseño "Casino Noir":** Una estética oscura, minimalista, con toques dorados, rojos y estilo neumorfismo/glassmorphism.
-- **Predicción con IA:** Se conecta directamente a la API de Anthropic para buscar patrones de sumas, diferencias, paridad, números fríos/calientes y distancias.
-- **Animaciones 3D:** Renderizado CSS de bolas de lotería realistas y animaciones de caída/rebote al arrojar resultados.
-- **Sin Dependencias Ocultas:** No usa NPM, bundlers ni frameworks. 100% Vanilla JS, HTML y CSS listo para GitHub Pages.
+1. **Cinco modelos estadísticos** calculan la probabilidad de cada número:
+   - Azar puro (distribución uniforme)
+   - Frecuencia histórica (suavizado Dirichlet / bayesiano)
+   - Momentum reciente (media móvil exponencial)
+   - Números atrasados (análisis de gaps)
+   - Reversión a la media (números fríos)
+2. **Validación walk-forward:** cada sorteo pasado se "predice" usando solo los sorteos anteriores a él.
+3. **Promedio Bayesiano de Modelos:** cada modelo pesa según qué tan bien predijo datos que nunca vio.
+4. **Test χ² de uniformidad:** mide si algún número sale más de lo normal con significancia estadística.
+5. **Monte Carlo:** se generan 40.000 combinaciones y se descartan las de estructura improbable (suma, paridad, rangos, consecutivos).
+6. **Anti-popularidad:** se penalizan combinaciones que juega mucha gente (fechas ≤31, patrones, jugadas ya ganadoras). No cambia la probabilidad de ganar, pero si ganas reduce la chance de compartir el premio.
+7. **Backtest honesto:** muestra los aciertos promedio del modelo vs. los esperados por azar.
 
-## Instalación y Uso
+La predicción es determinista: con los mismos datos y la misma ventana siempre da la misma jugada.
 
-1. Clona el repositorio o descarga los archivos.
-2. Abre `index.html` en tu navegador moderno preferido.
-3. Ingresa tu API Key de Anthropic (se necesita para llamar al modelo).
-4. Agrega los sorteos manualmente o utiliza el botón "Ejemplos Demo" para precargar un historial.
-5. Haz clic en "Analizar y Predecir" para obtener los resultados generados por IA.
+## Uso
 
-## Estructura de Archivos
+1. Abre `index.html` en un navegador moderno (o publícalo en GitHub Pages).
+2. Pulsa "Cargar resultados oficiales" (data.ny.gov, sorteos desde el 7/oct/2015, formato 5/69 + 1/26) o agrega sorteos a mano.
+3. Elige la ventana de análisis y pulsa "Analizar y predecir".
 
-- `index.html`: Estructura principal y maquetado de la interfaz de usuario.
-- `style.css`: Hojas de estilo que incluyen variables de color, layout grid/flexbox y animaciones keyframe (`bounceIn`).
-- `app.js`: Contiene la lógica del manejo del DOM, validación de inputs de 1 a 69 y 1 a 26, el wrapper con fetch a la API de Anthropic (`api.anthropic.com/v1/messages`), parseo del JSON y actualización visual de los resultados.
+## Archivos
+
+- `index.html`: estructura de la interfaz.
+- `style.css`: diseño (oscuro, moderno, adaptable a celular).
+- `stats-engine.js`: motor estadístico.
+- `app.js`: carga de datos, tabla y presentación de resultados.
 
 ---
 
-**Disclaimer Importante:**
-*⚠️ Esta herramienta es solo para entretenimiento. La lotería es completamente aleatoria. Ningún análisis matemático ni inteligencia artificial puede predecir resultados futuros con certeza.*
+**Disclaimer:** *⚠️ Solo para entretenimiento. La lotería es completamente aleatoria: cada sorteo es independiente y ningún análisis matemático puede predecir el resultado. Probabilidad del premio mayor: 1 en 292.201.338.*

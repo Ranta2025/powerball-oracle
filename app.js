@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearAllBtn = document.getElementById('clearAllBtn');
     const warningMsg = document.getElementById('warningMsg');
     
-    const apiKeyInput = document.getElementById('apiKey');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const loadingSection = document.getElementById('loadingSection');
     const resultSection = document.getElementById('resultSection');
@@ -21,18 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Events ---
     
-    // Validar input de API Key para habilitar botón
-    apiKeyInput.addEventListener('input', () => {
-        analyzeBtn.disabled = apiKeyInput.value.trim().length === 0;
-    });
-
     // Cargar datos reales NY Data
     const loadBtn = document.querySelector('#loadDataBtn');
     if(loadBtn) {
         loadBtn.addEventListener('click', async (e) => {
             e.preventDefault();
-            console.log("¡BOTÓN PRESIONADO! Iniciando el evento click...");
-            alert("¡Botón presionado! Verificando conexión a data.ny.gov...");
             try {
                 await loadRealData();
             } catch (err) {
@@ -77,7 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dataStatusBadge.className = 'badge';
         dataStatusBadge.textContent = 'Obteniendo, por favor espere...';
 
-        const URL_PRINCIPAL = 'https://data.ny.gov/resource/d6yy-54nr.json?$limit=200&$order=draw_date+DESC';
+        // Formato actual (5 de 69 + Powerball de 26) vigente desde el 7 de octubre de 2015
+        const URL_PRINCIPAL = "https://data.ny.gov/resource/d6yy-54nr.json?$limit=3000&$order=draw_date+DESC&$where=draw_date>='2015-10-07T00:00:00'";
         const URL_PROXY = 'https://corsproxy.io/?' + encodeURIComponent(URL_PRINCIPAL);
 
         try {
@@ -137,9 +130,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const blancas = nums.slice(0, 5);
                 const pb = nums[5];
                 
-                if (blancas.every(n => n >= 1 && n <= 69) && pb >= 1 && pb <= 26) {
+                const fecha = item.draw_date.substring(0, 10);
+                if (fecha >= '2015-10-07' && blancas.every(n => n >= 1 && n <= 69) && pb >= 1 && pb <= 26) {
                     allDraws.push({
-                        fecha: item.draw_date.substring(0, 10), // ej: "2025-04-12"
+                        fecha: fecha, // ej: "2025-04-12"
                         blancas: blancas,
                         powerball: pb
                     });
@@ -158,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const count = allDraws.length;
         if(count > 0) {
             drawCountSlider.max = Math.max(count, 20);
-            drawCountSlider.value = Math.min(100, count);
+            drawCountSlider.value = Math.min(300, count);
             sliderValue.textContent = drawCountSlider.value;
         }
     }
@@ -195,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateVisibility() {
         const count = drawsTableBody.children.length;
+        analyzeBtn.disabled = count === 0;
         if(count > 0) {
             tableContainer.classList.remove('hidden');
             sliderContainer.classList.remove('hidden');
@@ -210,350 +205,197 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- IA Analysis Logic ---
+    // --- Análisis Estadístico Local ---
 
-    async function handleAnalysis() {
-        const apiKey = apiKeyInput.value.trim();
-        
+    function handleAnalysis() {
         // Recopilar datos actuales de la tabla (por si el usuario editó o añadió manuales)
         const rows = document.querySelectorAll('#drawsTableBody tr');
-        let currentDraws = [];
+        const currentDraws = [];
         let isValid = true;
-        
+
         rows.forEach(row => {
-            const wInputs = row.querySelectorAll('.w-input');
-            const pbInput = row.querySelector('.pb-input');
-            
-            const blancas = Array.from(wInputs).map(inp => parseInt(inp.value));
-            const pb = parseInt(pbInput.value);
-            
-            if(blancas.some(isNaN) || isNaN(pb)) isValid = false;
-            
+            const blancas = Array.from(row.querySelectorAll('.w-input')).map(inp => parseInt(inp.value));
+            const pb = parseInt(row.querySelector('.pb-input').value);
+
+            if (blancas.some(n => isNaN(n) || n < 1 || n > 69) || new Set(blancas).size !== 5 ||
+                isNaN(pb) || pb < 1 || pb > 26) {
+                isValid = false;
+            }
             currentDraws.push({ blancas, powerball: pb });
         });
 
-        if(!isValid || currentDraws.length === 0) {
-            alert('Por favor verifica que todos los campos de números estén completos y válidos.');
+        if (!isValid || currentDraws.length === 0) {
+            alert('Verifica que cada sorteo tenga 5 bolas blancas distintas (1-69) y un Powerball (1-26).');
             return;
         }
 
-        // Limitar por slider si hay suficientes
-        const numToUse = parseInt(drawCountSlider.value);
-        if(currentDraws.length > numToUse) {
-            // Tomamos los primeros "numToUse" (que asumen estar más recientes)
-            currentDraws = currentDraws.slice(0, numToUse);
-        }
+        const windowSize = Math.min(parseInt(drawCountSlider.value), currentDraws.length);
 
         startLoading();
-
-        try {
-            const stats = calculateStats(currentDraws);
-            const result = await analizarConIA(stats, apiKey);
-            renderResult(result, stats);
-        } catch (error) {
-            console.error(error);
-            alert('Error en el análisis de IA: ' + error.message);
-            resetLoading();
-        }
-    }
-
-    function calculateStats(draws) {
-        let whiteFreq = {};
-        let pbFreq = {};
-        let totalSum = 0;
-        let totalEvens = 0;
-        let totalWhiteBalls = draws.length * 5;
-        let gapSums = 0;
-
-        draws.forEach(d => {
-            d.blancas.forEach(w => {
-                whiteFreq[w] = (whiteFreq[w] || 0) + 1;
-                totalSum += w;
-                if(w % 2 === 0) totalEvens++;
-            });
-            pbFreq[d.powerball] = (pbFreq[d.powerball] || 0) + 1;
-            
-            let sortedW = [...d.blancas].sort((a,b) => a-b);
-            for(let i=1; i<5; i++) {
-                gapSums += (sortedW[i] - sortedW[i-1]);
-            }
-        });
-
-        const sortFreq = (freqObj) => Object.entries(freqObj).sort((a,b) => b[1] - a[1]);
-        
-        const sortedWhites = sortFreq(whiteFreq);
-        const sortedPBs = sortFreq(pbFreq);
-
-        return {
-            total_analizados: draws.length,
-            ultimos_10: draws.slice(0, 10),
-            top_15_blancas: sortedWhites.slice(0, 15).map(x => ({ num: parseInt(x[0]), veces: x[1] })),
-            bottom_5_blancas: sortedWhites.slice(-5).map(x => ({ num: parseInt(x[0]), veces: x[1] })),
-            top_5_pb: sortedPBs.slice(0, 5).map(x => ({ num: parseInt(x[0]), veces: x[1] })),
-            suma_promedio: Math.round(totalSum / draws.length),
-            ratio_pares_impares: `${Math.round((totalEvens/totalWhiteBalls)*100)}% pares / ${Math.round(((totalWhiteBalls-totalEvens)/totalWhiteBalls)*100)}% impares`,
-            gap_promedio: (gapSums / (draws.length * 4)).toFixed(1)
-        };
-    }
-
-    const MODELOS_GRATIS = [
-        "openrouter/free",
-        "deepseek/deepseek-r1:free",
-        "deepseek/deepseek-v3:free", 
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "qwen/qwen-2.5-72b-instruct:free"
-    ];
-
-    async function llamarIA(systemPrompt, userMessage, apiKey) {
-        let ultimoError = null;
-        const loadingText = document.querySelector('#loadingSection p');
-
-        for (const modelo of MODELOS_GRATIS) {
+        // Dejar que el navegador pinte el spinner antes del cálculo
+        setTimeout(() => {
             try {
-                if (loadingText) loadingText.textContent = `Buscando modelo disponible (${modelo})...`;
-                
-                const response = await fetch(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${apiKey}`,
-                            "HTTP-Referer": "http://localhost",
-                            "X-Title": "Powerball Oracle"
-                        },
-                        body: JSON.stringify({
-                            model: modelo,
-                            messages: [
-                                { role: "system", content: systemPrompt },
-                                { role: "user", content: userMessage }
-                            ],
-                            temperature: 0.7,
-                            max_tokens: 1500
-                        })
-                    }
-                );
-
-                // Si el modelo no existe o no está disponible, probar el siguiente
-                if (response.status === 404 || response.status === 503) {
-                    console.warn(`Modelo ${modelo} no disponible, probando siguiente...`);
-                    continue;
-                }
-
-                if (!response.ok) {
-                    const error = await response.json().catch(() => ({}));
-                    const codigo = response.status;
-                    const mensaje = error?.error?.message || "Error desconocido";
-
-                    if (codigo === 401) {
-                        throw new Error("API Key inválida. Verifica tu key en openrouter.ai/keys");
-                    } else if (codigo === 429) {
-                        throw new Error("Demasiadas solicitudes. Espera 30 segundos y reintenta.");
-                    } else if (codigo === 402) {
-                        throw new Error("Sin créditos. Verifica tu cuenta en openrouter.ai");
-                    } else {
-                        throw new Error(`Error ${codigo}: ${mensaje}`);
-                    }
-                }
-
-                if (loadingText) loadingText.textContent = `Analizando con IA (${modelo})...`;
-                const data = await response.json();
-
-                if (
-                    !data.choices ||
-                    data.choices.length === 0 ||
-                    !data.choices[0].message?.content
-                ) {
-                    console.warn(`Modelo ${modelo} no devolvió contenido, probando siguiente...`);
-                    continue;
-                }
-
-                // Limpiar tags <think> de modelos de razonamiento como DeepSeek R1
-                let texto = data.choices[0].message.content;
-                texto = texto.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-
-                // Mostrar en consola qué modelo respondió
-                console.log(`✅ Respondió el modelo: ${modelo}`);
-                return texto;
-
-            } catch (e) {
-                // Si es error de red o 404, continuar con el siguiente modelo
-                if (e.message.includes("inválida") || 
-                    e.message.includes("créditos") || 
-                    e.message.includes("solicitudes")) {
-                    throw e; // Estos errores no se pueden resolver cambiando de modelo
-                }
-                ultimoError = e;
-                console.warn(`Error con ${modelo}:`, e.message);
-                continue;
+                const result = OracleEngine.analyze(currentDraws, windowSize);
+                renderResult(result);
+            } catch (error) {
+                console.error(error);
+                alert('Error en el análisis: ' + error.message);
+                resetLoading();
             }
-        }
-
-        // Si ningún modelo funcionó
-        throw new Error(
-            "Ningún modelo gratuito está disponible en este momento. " +
-            "Intenta de nuevo en unos minutos."
-        );
-    }
-
-    async function analizarConIA(stats, apiKey) {
-        const systemPrompt = `Eres un experto analista matemático de lotería. Se te entregará un resumen estadístico pre-calculado de los últimos sorteos de Powerball.
-Analiza estas estadísticas buscando patrones: frecuencias, sumas, paridad, gaps, rangos dominantes (1-23, 24-46, 47-69), números primos, y tendencias de los últimos 10 sorteos vs el histórico general.
-Basándote EXCLUSIVAMENTE en tu análisis lógico de estos datos, da UNA predicción concreta y definitiva.
-
-DEBES RESPONDER EXCLUSIVAMENTE CON ESTE JSON VÁLIDO (SIN MARKDOWN):
-{
-  "prediccion": {
-    "numeros_blancos": [n1, n2, n3, n4, n5],
-    "powerball": n,
-    "confianza": "Alta / Media / Baja",
-    "frase_resumen": "Oración central de la lógica"
-  },
-  "analisis": {
-    "patrones_encontrados": ["patrón 1", "patrón 2"],
-    "numeros_calientes": [n1, n2, n3, n4, n5, n6, n7, n8],
-    "numeros_frios": [n1, n2, n3, n4, n5],
-    "suma_promedio": número_entero,
-    "tendencia_paridad": "texto descriptivo",
-    "rango_dominante": "texto sobre rangos (bajo/medio/alto)",
-    "relacion_powerball": "texto descriptivo",
-    "tendencia_reciente": "texto analizando últimos 10 sorteos",
-    "razonamiento_prediccion": "Explicación detallada (4-6 oraciones) de POR QUÉ se eligieron basándose en patrones"
-  }
-}`;
-
-        const promptMessage = `Resumen Estadístico:\n${JSON.stringify(stats, null, 2)}`;
-
-        let intentos = 0;
-        const MAX_INTENTOS = 2;
-
-        while (intentos < MAX_INTENTOS) {
-            try {
-                const texto = await llamarIA(systemPrompt, promptMessage, apiKey);
-                
-                // Limpiar bloques markdown
-                const limpio = texto
-                    .replace(/```json/gi, "")
-                    .replace(/```/g, "")
-                    .trim();
-
-                // Extraer solo el JSON si hay texto extra alrededor
-                const matchJSON = limpio.match(/\{[\s\S]*\}/);
-                if (!matchJSON) throw new Error("No se encontró JSON en la respuesta");
-                
-                return JSON.parse(matchJSON[0]);
-
-            } catch (e) {
-                intentos++;
-                if (intentos >= MAX_INTENTOS) {
-                    throw new Error(
-                        "No se pudo obtener una respuesta válida después de 2 intentos. " +
-                        "Intenta de nuevo."
-                    );
-                }
-                // Esperar 3 segundos antes de reintentar
-                await new Promise(r => setTimeout(r, 3000));
-            }
-        }
+        }, 50);
     }
 
     function startLoading() {
         resultSection.classList.add('hidden');
         loadingSection.classList.remove('hidden');
         analyzeBtn.disabled = true;
-        analyzeBtn.textContent = "ANALIZANDO...";
+        analyzeBtn.textContent = "Analizando…";
     }
 
     function resetLoading() {
         loadingSection.classList.add('hidden');
         analyzeBtn.disabled = false;
-        analyzeBtn.textContent = "ANALIZAR Y PREDECIR";
+        analyzeBtn.textContent = "Analizar y predecir";
     }
 
-    function renderResult(data, localStats) {
+    const pct = x => (x * 100).toFixed(1) + '%';
+
+    function renderResult(r) {
         resetLoading();
         resultSection.classList.remove('hidden');
 
-        const p = data.prediccion;
-        const a = data.analisis;
+        const main = r.tickets[0];
+        const d = r.desc;
+        const bt = r.white.backtest;
+        const btPb = r.pb.backtest;
+        const uniformWeight = r.white.weights.find(w => w.id === 'uniforme').peso;
+        const bestModel = [...r.white.weights].sort((a, b) => b.peso - a.peso)[0];
+        const sesgo = r.chiWhite.pValue < 0.05;
 
-        document.getElementById('summaryPhrase').textContent = p.frase_resumen;
-        
+        document.getElementById('summaryPhrase').textContent = uniformWeight > 0.5
+            ? 'Los datos se comportan como azar puro: la jugada se optimizó por estructura estadística y para no compartir el premio.'
+            : `El modelo con más evidencia es "${bestModel.nombre}" (${pct(bestModel.peso)} del peso).`;
+
+        // Confianza basada en evidencia real, no en opinión
         const badge = document.getElementById('confidenceBadge');
-        badge.textContent = 'Confianza: ' + p.confianza;
-        if(p.confianza.toLowerCase().includes('alta')) {
-            badge.style.color = '#55ff55';
-            badge.style.boxShadow = '0 0 10px rgba(85, 255, 85, 0.3)';
-        } else if(p.confianza.toLowerCase().includes('baja')) {
-            badge.style.color = '#ff5555';
-            badge.style.boxShadow = '0 0 10px rgba(255, 85, 85, 0.3)';
-        } else {
-            badge.style.color = '#FFD700';
-            badge.style.boxShadow = '0 0 10px rgba(255, 215, 0, 0.3)';
-        }
+        const ventaja = bt.aciertosModelo - bt.aciertosAzar;
+        let nivel, color;
+        if (sesgo && ventaja > 0.05 && uniformWeight < 0.5) { nivel = 'Media'; color = '#FFD700'; }
+        else { nivel = 'Baja (el sorteo es aleatorio)'; color = '#ff5555'; }
+        badge.textContent = 'Confianza: ' + nivel;
+        badge.style.color = color;
+        badge.style.boxShadow = `0 0 10px ${color}55`;
 
         // Bolas animadas
         const ballsContainer = document.getElementById('predictionBalls');
         ballsContainer.innerHTML = '';
-        
-        p.numeros_blancos.forEach((num, index) => {
-            const b = document.createElement('div');
-            b.className = 'ball white';
-            b.textContent = num;
-            b.style.animationDelay = `${index * 0.15}s`;
-            ballsContainer.appendChild(b);
+        main.blancas.forEach((num, index) => {
+            ballsContainer.appendChild(makeBall(num, 'white', index));
+        });
+        ballsContainer.appendChild(makeBall(main.powerball, 'red', main.blancas.length));
+
+        // Patrones encontrados
+        const pairsTxt = d.topPairs.map(([k, v]) => `${k.replace('-', ' y ')} (${v} veces)`).join(', ');
+        const overdue = [];
+        for (let n = 1; n <= 69; n++) overdue.push(n);
+        overdue.sort((a, b) => d.gaps[b] - d.gaps[a]);
+        const patrones = [
+            `Test χ² de uniformidad (bolas blancas): χ²=${r.chiWhite.chi2.toFixed(1)}, gl=${r.chiWhite.df}, p=${r.chiWhite.pValue.toFixed(3)} → ` +
+                (sesgo ? 'hay desviación significativa del azar (posible, pero puede ser casualidad).' : 'no hay evidencia de que algún número salga más de lo normal.'),
+            `Test χ² Powerball: p=${r.chiPb.pValue.toFixed(3)} → ${r.chiPb.pValue < 0.05 ? 'desviación significativa.' : 'consistente con azar.'}`,
+            `Números más atrasados: ${overdue.slice(0, 5).map(n => `${n} (${d.gaps[n]} sorteos)`).join(', ')}. Lo esperado es que un número salga cada ~13.8 sorteos.`,
+            `Pares que más salieron juntos: ${pairsTxt} (lo esperado por azar es ${d.expectedPair.toFixed(1)} veces).`,
+            `Se simularon 40,000 combinaciones (Monte Carlo) y se eligieron las de mejor puntuación.`
+        ];
+        document.getElementById('patternsList').innerHTML = patrones.map(t => `<li>🔍 ${t}</li>`).join('');
+
+        // Calientes / fríos por z-score
+        const nums = [];
+        for (let n = 1; n <= 69; n++) nums.push(n);
+        const byCount = [...nums].sort((a, b) => r.whiteCounts[b] - r.whiteCounts[a] || a - b);
+        const maxCount = r.whiteCounts[byCount[0]] || 1;
+        renderFreqBars('hotNumbersList', byCount.slice(0, 8), r.whiteCounts, d.zScores, maxCount);
+        renderFreqBars('coldNumbersList', byCount.slice(-5).reverse(), r.whiteCounts, d.zScores, maxCount);
+
+        document.getElementById('avgSum').textContent = `${d.sumaPromedio} (teórica ${r.constantes.SUM_MEAN} ± ${r.constantes.SUM_SD.toFixed(0)})`;
+        document.getElementById('parityTrend').textContent = `${d.paresPct}% pares / ${100 - d.paresPct}% impares`;
+        document.getElementById('rangoDominante').textContent = `1-23: ${d.rangos[0]}% · 24-46: ${d.rangos[1]}% · 47-69: ${d.rangos[2]}%`;
+        document.getElementById('tendenciaReciente').textContent =
+            `Suma promedio de los últimos 10 sorteos: ${d.sumaReciente} vs ${d.sumaPromedio} en los ${r.ventana} analizados. ` +
+            `Cada sorteo es independiente, así que esta tendencia no cambia las probabilidades del próximo.`;
+
+        const pbSorted = [];
+        for (let n = 1; n <= 26; n++) pbSorted.push(n);
+        pbSorted.sort((a, b) => r.pbCounts[b] - r.pbCounts[a]);
+        document.getElementById('pbRelation').textContent =
+            `Powerball más frecuentes: ${pbSorted.slice(0, 5).map(n => `${n} (${r.pbCounts[n]}x)`).join(', ')}. ` +
+            `Elegido: ${main.powerball}. Probabilidad real de acertar el Powerball: 1 en 26 (3.8%).`;
+
+        // Pesos de modelos
+        const mw = document.getElementById('modelWeights');
+        mw.innerHTML = '';
+        r.white.weights.forEach(w => {
+            mw.appendChild(freqItem(pct(w.peso), w.peso * 100, w.nombre));
         });
 
-        const pb = document.createElement('div');
-        pb.className = 'ball red';
-        pb.textContent = p.powerball;
-        pb.style.animationDelay = `${p.numeros_blancos.length * 0.15}s`;
-        ballsContainer.appendChild(pb);
+        document.getElementById('backtestText').textContent =
+            `Se "predijeron" los últimos ${bt.pasos} sorteos usando solo datos anteriores a cada uno. ` +
+            `Bolas blancas acertadas por sorteo: modelo ${bt.aciertosModelo.toFixed(3)} vs azar ${bt.aciertosAzar.toFixed(3)}. ` +
+            `Powerball acertado: modelo ${pct(btPb.aciertosModelo)} vs azar ${pct(btPb.aciertosAzar)}. ` +
+            (Math.abs(ventaja) < 0.05 ? 'Resultado: el modelo rinde igual que el azar, como predice la teoría.' :
+                ventaja > 0 ? 'El modelo supera levemente al azar en esta muestra (probablemente suerte estadística).' :
+                    'El modelo rinde algo peor que el azar en esta muestra (variación normal).');
 
-        // Análisis Details
-        const patternsList = document.getElementById('patternsList');
-        patternsList.innerHTML = a.patrones_encontrados.map(pat => `<li>🔍 ${pat}</li>`).join('');
-        
-        // Freq Bars
-        renderFreqBars('hotNumbersList', a.numeros_calientes, localStats.top_15_blancas, true);
-        renderFreqBars('coldNumbersList', a.numeros_frios, localStats.bottom_5_blancas, false);
+        // Jugadas alternativas
+        const alt = document.getElementById('altTickets');
+        alt.innerHTML = '';
+        r.tickets.slice(1).forEach(t => {
+            const row = document.createElement('div');
+            row.className = 'alt-ticket';
+            t.blancas.forEach(n => row.appendChild(makeBall(n, 'white mini', 0)));
+            row.appendChild(makeBall(t.powerball, 'red mini', 0));
+            alt.appendChild(row);
+        });
 
-        document.getElementById('avgSum').textContent = a.suma_promedio;
-        document.getElementById('parityTrend').textContent = a.tendencia_paridad;
-        document.getElementById('rangoDominante').textContent = a.rango_dominante;
-        document.getElementById('tendenciaReciente').textContent = a.tendencia_reciente;
-        document.getElementById('pbRelation').textContent = a.relacion_powerball;
-        document.getElementById('reasoningText').textContent = a.razonamiento_prediccion;
-        
-        // Auto-scroll
+        document.getElementById('reasoningText').textContent =
+            `1) Cinco modelos estadísticos (azar puro, frecuencia, momentum, atrasados y fríos) calculan la probabilidad de cada número. ` +
+            `2) Se combinan con Promedio Bayesiano: cada modelo pesa según qué tan bien predijo los sorteos pasados que nunca vio. ` +
+            `3) Se generan 40,000 combinaciones por Monte Carlo y se descartan las de estructura improbable (suma fuera de ${Math.round(r.constantes.SUM_MEAN - 1.3 * r.constantes.SUM_SD)}-${Math.round(r.constantes.SUM_MEAN + 1.3 * r.constantes.SUM_SD)}, todos pares/impares, 3+ consecutivos). ` +
+            `4) Se penalizan las combinaciones que la gente juega mucho (fechas de cumpleaños ≤31, patrones, jugadas ya ganadoras): eso no aumenta la probabilidad de ganar, ` +
+            `pero si ganas reduce la chance de compartir el premio — es la única ventaja matemática real que existe. ` +
+            `Probabilidad del premio mayor: 1 en ${r.constantes.JACKPOT_ODDS.toLocaleString('es')}.`;
+
         resultSection.scrollIntoView({ behavior: 'smooth' });
     }
 
-    function renderFreqBars(containerId, numbersArr, statsRef, isHot) {
+    function makeBall(num, cls, index) {
+        const b = document.createElement('div');
+        b.className = 'ball ' + cls;
+        b.textContent = num;
+        b.style.animationDelay = `${index * 0.15}s`;
+        return b;
+    }
+
+    function freqItem(label, percent, countText) {
+        const item = document.createElement('div');
+        item.className = 'freq-item';
+        item.innerHTML = `
+            <span class="num">${label}</span>
+            <div class="freq-bar-bg">
+                <div class="freq-bar-fill" style="width: ${Math.max(percent, 1)}%"></div>
+            </div>
+            <span class="count">${countText}</span>
+        `;
+        return item;
+    }
+
+    function renderFreqBars(containerId, numbers, counts, zScores, maxCount) {
         const container = document.getElementById(containerId);
         container.innerHTML = '';
-        
-        // Encontrar max veces para escalar
-        let maxVeces = statsRef.reduce((max, item) => item.veces > max ? item.veces : max, 1);
-        if(!isHot && maxVeces < 5) maxVeces = 5; // offset visual para frios
-
-        numbersArr.forEach(num => {
-            // Buscar cuántas veces apareció según las stats locales
-            let statItem = statsRef.find(s => s.num === num);
-            let count = statItem ? statItem.veces : 0;
-            let percent = (count / maxVeces) * 100;
-            if(!isHot && percent === 0) percent = 5; // Mínimo visual
-
-            const item = document.createElement('div');
-            item.className = 'freq-item';
-            item.innerHTML = `
-                <span class="num">${num}</span>
-                <div class="freq-bar-bg">
-                    <div class="freq-bar-fill" style="width: ${percent}%"></div>
-                </div>
-                <span class="count">${count}x</span>
-            `;
-            container.appendChild(item);
+        numbers.forEach(num => {
+            const z = zScores[num];
+            container.appendChild(freqItem(num, counts[num] / maxCount * 100,
+                `${counts[num]}x (z=${z >= 0 ? '+' : ''}${z.toFixed(1)})`));
         });
     }
 });
