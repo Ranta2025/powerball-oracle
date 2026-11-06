@@ -10,11 +10,12 @@
 <body>
     <div class="container">
         <header>
-            <h1>🎱 POWERBALL ORACLE</h1>
+            <h1><span class="logo-ball">🎱</span> POWERBALL ORACLE</h1>
             <p class="subtitle">Análisis de patrones con Inteligencia Artificial</p>
         </header>
 
         <section class="data-section glass">
+            <h2 class="section-title"><span class="step-num">1</span>Historial de sorteos</h2>
             <div class="load-controls">
                 <button id="loadDataBtn" class="btn secondary">🔄 Cargar últimos resultados</button>
                 <span id="dataStatusBadge" class="badge">A la espera de datos...</span>
@@ -54,18 +55,19 @@
         </section>
 
         <section class="api-section glass">
+            <h2 class="section-title"><span class="step-num">2</span>Análisis con IA</h2>
             <label for="apiKey">OpenRouter API Key (<a href="https://openrouter.ai/keys" target="_blank">Obtén tu API Key gratis en openrouter.ai — sin tarjeta de crédito</a>):</label>
             <input type="password" id="apiKey" placeholder="sk-or-..." autocomplete="off">
-            <div class="model-badge" style="margin-top: 10px; margin-bottom: 10px; font-size: 0.9em; color: #a1a1aa; text-align: center;">🧠 Powered by DeepSeek R1 — Especialista en razonamiento matemático</div>
+            <div class="model-badge">🧠 Modelos gratuitos de OpenRouter — selección automática del que esté disponible</div>
             <button id="analyzeBtn" class="btn primary" disabled>ANALIZAR Y PREDECIR</button>
-            <p style="font-size: 0.8em; color: #a1a1aa; text-align: center; margin-top: 10px;">La app prueba automáticamente varios modelos gratuitos hasta encontrar uno disponible</p>
+            <p class="hint">La app prueba automáticamente varios modelos gratuitos hasta encontrar uno disponible</p>
         </section>
 
         <section id="loadingSection" class="hidden text-center">
             <div class="spinner">
                 <div class="ball-spin"></div>
             </div>
-            <p>Buscando modelo disponible...</p>
+            <p>Buscando modelo disponible... los modelos gratuitos pueden tardar 1-3 minutos.</p>
         </section>
 
         <section id="resultSection" class="result-section hidden">
@@ -119,7 +121,7 @@
         </section>
         
         <footer>
-            <p class="disclaimer">⚠️ Esta herramienta es solo para entretenimiento y análisis estadístico. La lotería Powerball es un juego de azar completamente aleatorio. Ningún análisis matemático o de IA puede predecir resultados futuros con certeza. Juega responsablemente.<br><br>Powered by DeepSeek R1 via OpenRouter — Gratis · Sin tarjeta de crédito</p>
+            <p class="disclaimer">⚠️ Esta herramienta es solo para entretenimiento y análisis estadístico. La lotería Powerball es un juego de azar completamente aleatorio. Ningún análisis matemático o de IA puede predecir resultados futuros con certeza. Juega responsablemente.<br><br>Modelos gratuitos vía OpenRouter — Gratis · Sin tarjeta de crédito</p>
         </footer>
     </div>
     <script src="app.js"></script>
